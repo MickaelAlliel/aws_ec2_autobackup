@@ -1,5 +1,5 @@
 #!/bin/bash
-export PATH=$PATH:/usr/local/bin/:/usr/bin
+export PATH=$PATH:/home/mickael/.local/bin/:/usr/bin
 
 ## Automatic AWS EBS Volume Snapshot Creation & Clean-Up Script
 #
@@ -46,7 +46,7 @@ add_tags() {
 	snapshot_tags="$snapshot_tags Key=CreatedAt,Value=$CURRENT_DATE"
 	snapshot_tags="$snapshot_tags Key=PurgeAfter,Value=$PURGE_DATE"
 
-	$(aws ec2 create-tags --resources $created_snapshot_id --region $REGION --tags $snapshot_tags)
+	created_tags=$(aws ec2 create-tags --resources $created_snapshot_id --region $REGION --tags $snapshot_tags)
 
 	echo 'Tags created!'
 	echo''
@@ -55,7 +55,7 @@ add_tags() {
 create_snapshot() {
 	echo Creating new snapshot for volume $VOLUME_ID
 	created_snapshot_id=$(aws ec2 create-snapshot --volume-id $VOLUME_ID --region $REGION --description 'MA EC2 Automatic Backup Script' --output text --query SnapshotId)
-	echo 'Snapshot creation completed!'
+	echo $created_snapshot_id - created succesfully!
 	echo ''
 }
 
@@ -66,19 +66,22 @@ get_snapshots_list() {
 
 purge_snapshots() {
 	echo 'Preparing to delete old snapshots...'
+	echo ''
 	for snap_id in $SNAPSHOTS_LIST; do
 		if [ -z $snap_id  ]; then
 			echo 'No snapshots to purge'
 		else
 			purge_after=$(aws ec2 describe-snapshots --snapshot-id $snap_id --output text | grep ^TAGS.*PurgeAfter | cut -f 3)
 
-			if [ $CURRENT_DATE > $purge_after ]; then
+			if [ $CURRENT_DATE -ge $purge_after ]; then
+				echo Deleting $snap_id
 				$(aws ec2 delete-snapshot --snapshot-id $snap_id)
 			else
 				echo Snapshot $snap_id is not up for purge yet. Moving on!
 			fi
 		fi
 	done
+	echo ''
 	echo 'Old snapshots successfully purged!'
 }
 
